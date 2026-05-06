@@ -1,0 +1,147 @@
+﻿<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <title>Общая сырная тарелка</title>
+    <style>
+        body {
+            margin: 0;
+            overflow: hidden;
+            background: #fdf5e6;
+            display: flex;
+            justify-content: center;
+            align-items: flex-end;
+            height: 100vh;
+        }
+
+        #table {
+            position: relative;
+            width: 600px;
+            height: 400px;
+            display: flex;
+            justify-content: center;
+            align-items: flex-end;
+        }
+
+        #plate-img {
+            position: absolute;
+            bottom: 0;
+            width: 100%;
+            z-index: 1;
+            pointer-events: none;
+        }
+
+        .cheese {
+            position: absolute;
+            width: 100px;
+            cursor: pointer;
+            z-index: 5;
+            transition: opacity 0.3s;
+            user-select: none;
+        }
+
+        #stats {
+            position: fixed;
+            top: 20px;
+            font-family: sans-serif;
+            background: white;
+            padding: 10px 20px;
+            border-radius: 20px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+        }
+    </style>
+</head>
+<body>
+
+    <div id="stats">На общей тарелке: <span id="count">...</span></div>
+    <div id="table">
+        <img src="plate.png" id="plate-img">
+        <div id="cheese-container"></div>
+    </div>
+
+    <!-- Подключаем Firebase -->
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/9.23.0/firebase-app.js";
+        import { getDatabase, ref, set, onValue, update } from "https://www.gstatic.com/firebasejs/9.23.0/firebase-database.js"; 
+
+
+        const firebaseConfig = {
+            apiKey: "AIzaSyDnFQ_pmqth2MTEAqhynC4DQUwRSBISu0o",
+            databaseURL: "https://cheeseees-7c018-default-rtdb.firebaseio.com",
+            projectId: "cheeseees-7c018",
+            appId: "1:216606435793:web:63f61ce4f4cf80bc0458f0"
+        };
+
+        const app = initializeApp(firebaseConfig);
+        const db = getDatabase(app);
+        const cheeseRef = ref(db, 'cheesePile');
+        const TOTAL = 30;
+
+        // Переменная живет только пока открыта страница
+        let hasEatenThisSession = false;
+
+        function resetPile() {
+            // Сбрасываем статус при полном обновлении кучи в базе
+            hasEatenThisSession = false;
+
+            const newData = {};
+            for (let i = 0; i < TOTAL; i++) {
+                newData[i] = {
+                    id: i,
+                    x: (Math.random() - 0.5) * 450,
+                    y: Math.random() * 150 + 20,
+                    rotate: (Math.random() - 0.5) * 40,
+                    scale: 0.8 + Math.random() * 0.4,
+                    eaten: false
+                };
+            }
+            set(cheeseRef, newData);
+        }
+
+        onValue(cheeseRef, (snapshot) => {
+            const data = snapshot.val();
+            if (!data) {
+                resetPile();
+                return;
+            }
+            render(data);
+        });
+
+        function render(cheeseData) {
+            const container = document.getElementById('cheese-container');
+            container.innerHTML = '';
+            let left = 0;
+
+            Object.keys(cheeseData).forEach(key => {
+                const item = cheeseData[key];
+                if (!item.eaten) {
+                    left++;
+                    const img = document.createElement('img');
+                    img.src = 'cheese.png';
+                    img.className = 'cheese';
+                    img.style.left = `calc(50% + ${item.x}px)`;
+                    img.style.bottom = `${item.y}px`;
+                    img.style.transform = `translateX(-50%) rotate(${item.rotate}deg) scale(${item.scale})`;
+
+                    img.onclick = () => {
+                        if (hasEatenThisSession) {
+                            alert("Вы уже съели свой сыр! Вы — мышь! 🧀🐀");
+                            return;
+                        }
+
+                        hasEatenThisSession = true;
+                        update(ref(db, `cheesePile/${item.id}`), { eaten: true });
+                    };
+                    container.appendChild(img);
+                }
+            });
+
+            document.getElementById('count').innerText = left;
+
+            if (left === 0 && Object.keys(cheeseData).length > 0) {
+                setTimeout(resetPile, 2000);
+            }
+        }
+    </script>
+</body>
+</html>
